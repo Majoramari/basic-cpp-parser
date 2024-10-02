@@ -1,8 +1,7 @@
-#include <fstream>
 #include <iostream>
-#include <regex>
+#include <fstream>
 #include <vector>
-
+#include <regex>
 using namespace std;
 
 enum class TokenType {
@@ -20,65 +19,77 @@ struct Token {
 	TokenType type;
 };
 
-TokenType tokenize(const string &word) {
-	vector<string> keywords = {"for", "while", "if", "else", "print", "string"};
+TokenType classify_token(const string &token) {
+	vector<string> keywords = {
+		"for", "while", "if",
+		"else", "print", "string",
+		"int", "float", "true",
+		"false", "and", "or",
+		"not", "return"
+	};
 
-	if (find(keywords.begin(), keywords.end(), word) != keywords.end()) {
-		return TokenType::KEYWORD;
-	}
-
-	if (regex_match(word, regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+	if (regex_match(token, regex("[A-Za-z_][A-Za-z0-9_]*")))
 		return TokenType::IDENTIFIER;
-	}
 
-	if (regex_match(word, regex("[0-9]+"))) {
+	if (regex_match(token, regex("[0-9]+")))
 		return TokenType::INTEGER;
-	}
 
-	if (regex_match(word, regex("[0-9]+\\.[0-9]+"))) {
+	if (regex_match(token, regex("[0-9]+\\.[0-9]+")))
 		return TokenType::FLOAT;
-	}
 
-	if (regex_match(word, regex("\".*\""))) {
+	if (regex_match(token, regex("\".*\"")))
 		return TokenType::STRING;
-	}
 
-	vector<string> operators = {"+", "-", "*", "/", "=", "%"};
+	if (ranges::find(keywords, token) != keywords.end())
+		return TokenType::KEYWORD;
 
-	if (find(operators.begin(), operators.end(), word) != operators.end()) {
+	if (
+		vector<string> operators = {"+", "-", "*", "/", "=", "%"};
+		ranges::find(operators, token) != operators.end()
+	)
 		return TokenType::OPERATOR;
-	}
 
 	return TokenType::PUNCTUATOR;
 }
 
-vector<Token> parse_file(const string &file_path) {
-	ifstream file(file_path);
-
-	if (!file.is_open())
-		throw runtime_error("Could not open the file!");
-
-	string word;
+vector<Token> tokenize(const string &line) {
 	vector<Token> tokens;
-	while (file >> word) {
-		Token token = {
-			word,
-			tokenize(word)
-		};
-		tokens.push_back(token);
-	}
 
-	file.close();
+	// Regular expression that matches tokens:
+	// - floating point numbers (123.456)
+	// - integers (123)
+	// - strings ("hello world")
+	// - identifiers (earth)
+	// - operators (==, !=, <=, >=, +, -, *, /, =, %)
+	// - punctuates (;, (, ), ,)
+	const regex token_pattern(R"([0-9]+\.[0-9]+|[0-9]+|".*?"|[A-Za-z_][A-Za-z0-9_]*|==|!=|<=|>=|[+\-*/=%;(),])");
+	sregex_iterator iter(line.begin(), line.end(), token_pattern);
+	const sregex_iterator end;
+
+	while (iter != end) {
+		string token_value = iter->str();
+		Token token;
+		token.value = token_value;
+		token.type = classify_token(token_value);
+		tokens.push_back(token);
+		++iter;
+	}
 
 	return tokens;
 }
 
-void print_tokens(const vector<Token> &tokens) {
-	for (const auto &[value, type]: tokens) {
-		cout << value << " ";
-		switch (type) {
-			case TokenType::KEYWORD: cout << "Keyword";
-				break;
+void parse_file(const string &file_path) {
+	ifstream file(file_path);
+	string line;
+	vector<Token> tokens;
+
+	while (getline(file, line)) {
+		vector<Token> line_tokens = tokenize(line);
+		tokens.insert(tokens.end(), line_tokens.begin(), line_tokens.end());
+	}
+
+	for (const auto &[token_value, token_type]: tokens) {
+		switch (token_type) {
 			case TokenType::IDENTIFIER: cout << "Identifier";
 				break;
 			case TokenType::INTEGER: cout << "Integer";
@@ -87,18 +98,19 @@ void print_tokens(const vector<Token> &tokens) {
 				break;
 			case TokenType::STRING: cout << "String";
 				break;
+			case TokenType::KEYWORD: cout << "Keyword";
+				break;
 			case TokenType::OPERATOR: cout << "Operator";
 				break;
 			case TokenType::PUNCTUATOR: cout << "Punctuator";
 				break;
 		}
-		cout << endl;
+		cout << ": " << token_value << endl;
 	}
 }
 
 int main() {
-	const string file_path = "code.txt"; // read_file_name();
-	const vector<Token> tokens = parse_file(file_path);
-	print_tokens(tokens);
+	const string file_path = "code.txt";
+	parse_file(file_path);
 	return 0;
 }
